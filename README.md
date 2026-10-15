@@ -102,6 +102,16 @@ python main.py "Benefits and limitations of retrieval-augmented generation"
 
 The search server exposes a `search_web` tool. The client launches that server as a subprocess over standard input/output (stdio), discovers the available tool, and calls it through an MCP session. This separates the research workflow from the implementation of the search tool.
 
+## Tests
+
+Run the offline unit tests (no network search is needed):
+
+```bash
+python -m unittest discover -s tests -v
+```
+
+The tests cover query planning, empty input handling, report source links, and basic review checks. They do not test live search-provider availability.
+
 ## Current limitations
 
 - Search quality and availability depend on DuckDuckGo and network access.
