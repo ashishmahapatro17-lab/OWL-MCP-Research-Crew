@@ -1,130 +1,78 @@
 # OWL-MCP Research Crew
 
-A focused, educational research workflow inspired by the multi-agent and tool-using ideas in [CAMEL-AI OWL](https://github.com/camel-ai/owl). It demonstrates a **Planner → Researcher → Writer → Reviewer** pipeline, with web search exposed as a real tool through the **Model Context Protocol (MCP)**.
+An educational research workflow inspired by the tool-using ideas in CAMEL-AI OWL. It combines a Planner → Researcher → Writer → Reviewer pipeline with web search exposed as a real tool through the Model Context Protocol (MCP).
 
-> **Scope and attribution:** This is a small independent learning project, not the official OWL framework and not a copy of the full OWL repository. CAMEL-AI OWL is the upstream inspiration; see [UPSTREAM.md](UPSTREAM.md).
+> Scope and attribution: This is an independent learning project, not the official OWL framework. LLM-assisted stages are optional and use an OpenAI-compatible chat-completions API when configured.
 
 ## What it does
 
-1. **Planner** turns a research question into a small set of search queries.
-2. **Researcher** calls a local MCP server that runs DuckDuckGo searches and returns titled results with source URLs.
-3. **Writer** creates a readable report from the retrieved evidence.
-4. **Reviewer** checks that the report has evidence and flags when the search returned too little information.
-5. **Source list** preserves result titles and URLs so a reader can inspect the original pages.
-
-This is a transparent, rule-based orchestration demo: it does not claim to train models or guarantee that every source is authoritative. Search results can be incomplete or inaccurate; verify important claims against the linked pages.
+1. Planner: Generates focused web queries using an LLM, with a deterministic fallback.
+2. Researcher: Calls a local MCP server over stdio; the server runs DuckDuckGo searches and returns titled results with source URLs.
+3. Writer: Synthesizes retrieved snippets into a Markdown report with numbered citations and a source list. Without an API key, it creates an evidence-list report.
+4. Reviewer: Runs deterministic completeness checks and, when configured, asks an LLM to critique unsupported specifics and unclear citations. This is not independent fact verification.
+5. Output: Saves timestamped Markdown reports under reports/.
 
 ## Architecture
 
-```text
-Research question
-       |
-    Planner
-       | search queries
-    Researcher
-       | MCP Client (stdio)
-       v
-  MCP Search Server ----> DuckDuckGo search
-       |
-  Search results + URLs
-       |
-     Writer
-       |
-    Reviewer
-       |
-  Markdown report
-```
+    Research question
+           |
+    LLM Planner (or rule-based fallback)
+           |
+    Researcher / MCP Client (stdio)
+           |
+    MCP Search Server ----> DuckDuckGo
+           |
+    Retrieved snippets + URLs
+           |
+    LLM Writer (or evidence-list fallback)
+           |
+    Structural checks + optional LLM critique
+           |
+    Cited Markdown report
 
-## Requirements
+## Setup
 
-- Python 3.10 or newer
-- Internet access for DuckDuckGo searches
+Python 3.10+ is required.
 
-## Quick start
+    git clone https://github.com/ashishmahapatro17-lab/OWL-MCP-Research-Crew.git
+    cd OWL-MCP-Research-Crew
+    python -m venv .venv
+    source .venv/bin/activate
+    pip install -r requirements.txt
+    cp .env.example .env
 
-### macOS / Linux
+On Windows, activate with .venv\Scripts\activate and copy .env.example to .env.
 
-```bash
-git clone https://github.com/ashishmahapatro17-lab/OWL-MCP-Research-Crew.git
-cd OWL-MCP-Research-Crew
+Edit .env and set OPENAI_API_KEY. The default model is gpt-4o-mini. Optionally set LLM_MODEL and LLM_BASE_URL for another compatible provider. Keep .env private; never commit API keys.
 
-python3 -m venv .venv
-source .venv/bin/activate
+Run without an LLM key (deterministic fallback):
 
-python -m pip install --upgrade pip
-pip install -r requirements.txt
+    python main.py "How is MCP used to connect AI applications to tools?"
 
-python main.py "How is MCP used to connect AI applications to tools?"
-```
+Run with an LLM key configured in .env:
 
-### Windows PowerShell
+    python main.py "Compare practical uses and limitations of retrieval-augmented generation"
 
-```powershell
-git clone https://github.com/ashishmahapatro17-lab/OWL-MCP-Research-Crew.git
-cd OWL-MCP-Research-Crew
+The application prints which mode is active and saves the report under reports/.
 
-py -m venv .venv
-.venv\Scripts\Activate.ps1
+## MCP integration
 
-python -m pip install --upgrade pip
-pip install -r requirements.txt
-
-python main.py "How is MCP used to connect AI applications to tools?"
-```
-
-The report is printed in the terminal and saved under `reports/`.
-
-## Example command
-
-```bash
-python main.py "Benefits and limitations of retrieval-augmented generation"
-```
-
-## Project structure
-
-```text
-.
-├── main.py                 # Coordinates the research workflow
-├── research_crew/
-│   ├── __init__.py
-│   ├── agents.py           # Planner, Writer, Reviewer stages
-│   ├── mcp_client.py       # Starts MCP server and invokes its tool
-│   └── report.py           # Markdown report and source list
-├── mcp_server/
-│   └── search_server.py    # MCP tool backed by DuckDuckGo search
-├── reports/                # Generated reports (ignored by Git)
-├── requirements.txt
-├── .env.example
-└── UPSTREAM.md             # Attribution and project boundaries
-```
-
-## How MCP is used
-
-The search server exposes a `search_web` tool. The client launches that server as a subprocess over standard input/output (stdio), discovers the available tool, and calls it through an MCP session. This separates the research workflow from the implementation of the search tool.
+The local server exposes a search_web tool. The client starts it as a subprocess over stdio, initializes an MCP session, discovers the tool, and invokes it. This keeps the research workflow separate from the search-provider implementation.
 
 ## Tests
 
-Run the offline unit tests (no network search is needed):
+    python -m unittest discover -s tests -v
 
-```bash
-python -m unittest discover -s tests -v
-```
+Offline tests cover deterministic query planning, empty input handling, report source links, and structural review checks. They do not require an API key and do not test live provider availability.
 
-The tests cover query planning, empty input handling, report source links, and basic review checks. They do not test live search-provider availability.
-
-## Current limitations
+## Limitations
 
 - Search quality and availability depend on DuckDuckGo and network access.
-- The Planner, Writer, and Reviewer are deliberately simple Python stages, not separate LLM-powered autonomous agents.
-- The Reviewer performs basic completeness checks; it does not fact-check every claim.
+- LLM quality depends on the configured provider/model and retrieved snippets.
+- The system does not guarantee source authority or factual correctness; users must inspect linked sources.
+- The reviewer provides a critique, not a verified fact-check.
 - This is a learning/demo project, not a production research system.
-
-## Next improvements
-
-- Add an optional LLM-backed synthesis stage with explicit model configuration.
-- Add unit tests and saved example outputs.
-- Add stronger claim-to-source verification and retry policies.
 
 ## License
 
-The original project code in this repository is provided under the MIT License; see [LICENSE](LICENSE). Upstream OWL is a separate project licensed under Apache 2.0. See [UPSTREAM.md](UPSTREAM.md) for attribution.
+Original project code is provided under the MIT License. Upstream OWL is a separate project under Apache 2.0; see UPSTREAM.md.
